@@ -85,7 +85,11 @@ const animals = [];
 const bolts = [];
 const particles = [];
 const remotePlayers = new Map();
-const isTouchDevice = window.matchMedia ? matchMedia("(hover: none), (pointer: coarse)").matches : ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+const ua = navigator.userAgent || "";
+const hasCoarsePointer = window.matchMedia && matchMedia("(hover: none), (pointer: coarse)").matches;
+const hasTouchScreen = "ontouchstart" in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+const hasMobileUserAgent = /Android|iPhone|iPad|iPod|Mobile|MicroMessenger|QQBrowser|HuaweiBrowser|MiuiBrowser/i.test(ua);
+const isTouchDevice = !!(hasCoarsePointer || hasTouchScreen || hasMobileUserAgent);
 const isMobileBuild = new URLSearchParams(location.search).get("mobile") === "1" || location.pathname === "/mobile";
 if (isMobileBuild) {
   document.body.classList.add("mobile-build");
@@ -218,7 +222,7 @@ function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
   if (isMobileBuild) url.searchParams.set("mobile", "1");
-  url.searchParams.set("v", "china-mobile-1");
+  url.searchParams.set("v", "china-mobile-2");
   return url.toString();
 }
 
@@ -756,7 +760,7 @@ function startNewMultiplayerSave() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
   if (isMobileBuild) url.searchParams.set("mobile", "1");
-  url.searchParams.set("v", "china-mobile-1");
+  url.searchParams.set("v", "china-mobile-2");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
