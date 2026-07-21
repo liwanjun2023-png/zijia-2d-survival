@@ -53,6 +53,9 @@ const ui = {
   creativeBtn: document.querySelector("#creativeBtn"),
   multiplayerBtn: document.querySelector("#multiplayerBtn"),
   newMultiplayerBtn: document.querySelector("#newMultiplayerBtn"),
+  adminRoleBtn: document.querySelector("#adminRoleBtn"),
+  guestRoleBtn: document.querySelector("#guestRoleBtn"),
+  teleportPeerBtn: document.querySelector("#teleportPeerBtn"),
   voiceBtn: document.querySelector("#voiceBtn"),
 };
 
@@ -67,6 +70,7 @@ const PHASE_SECONDS = 300;
 const SAVE_PREFIX = "zijia-mining-survival-save";
 const SAVE_KEY = "zijia-mining-survival-save-v1";
 const MOBILE_KEYS_KEY = "zijia-mobile-key-layout-v1";
+const ROLE_KEY = "zijia-multiplayer-role-v1";
 const view = { w: 0, h: 0 };
 const camera = { x: 0, y: 0 };
 const keys = new Set();
@@ -112,6 +116,7 @@ const multiplayer = {
   worldSeq: 0,
   pendingBlockEvents: [],
   pendingWorldEvents: [],
+  role: localStorage.getItem(ROLE_KEY) === "admin" ? "admin" : "guest",
 };
 
 const voice = {
@@ -207,13 +212,32 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "tree-worldcoords-1");
+  url.searchParams.set("v", "admin-arrow-1");
   return url.toString();
+}
+
+function isAdmin() {
+  return multiplayer.role === "admin";
+}
+
+function updateRoleUi() {
+  ui.adminRoleBtn?.classList.toggle("active", isAdmin());
+  ui.guestRoleBtn?.classList.toggle("active", !isAdmin());
+  if (ui.teleportPeerBtn) ui.teleportPeerBtn.hidden = !multiplayer.enabled || !isAdmin();
+}
+
+function setRole(role) {
+  multiplayer.role = role === "admin" ? "admin" : "guest";
+  localStorage.setItem(ROLE_KEY, multiplayer.role);
+  updateRoleUi();
+  say(isAdmin() ? "已切换为管理员，可以按 Z 传送到队友处。" : "已切换为游客，不能使用传送。");
+  sendMultiplayerMove(performance.now(), true);
 }
 
 function updateSharePanel() {
   ui.sharePanel.classList.toggle("hidden", !multiplayer.enabled || localStorage.getItem("zijia-hide-room-panel") === "1");
   ui.roomCodeInput.value = multiplayer.room;
+  updateRoleUi();
 }
 
 async function copyText(text, label) {
@@ -384,7 +408,7 @@ function saveGame() {
       placeMode: state.placeMode,
       mode: state.mode,
       dimension: state.dimension,
-      multiplayer: { enabled: multiplayer.enabled, room: multiplayer.room },
+      multiplayer: { enabled: multiplayer.enabled, room: multiplayer.room, role: multiplayer.role },
     },
     player: {
       x: player.x,
@@ -482,6 +506,8 @@ function loadGame() {
     ui.startOverlay.classList.add("hidden");
     if (save.state.multiplayer?.enabled) {
       multiplayer.room = save.state.multiplayer.room || multiplayer.room;
+      multiplayer.role = save.state.multiplayer.role === "admin" ? "admin" : "guest";
+      localStorage.setItem(ROLE_KEY, multiplayer.role);
       startMultiplayer("已恢复联机存档");
       return true;
     }
@@ -713,7 +739,7 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "tree-worldcoords-1");
+  url.searchParams.set("v", "admin-arrow-1");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
@@ -794,6 +820,7 @@ function playerPacket() {
     reviveTargetId: state.reviveTargetId,
     hp: Math.ceil(player.hp),
     armor: Math.ceil(player.armor),
+    role: multiplayer.role,
     facing: player.facing,
     dimension: state.dimension,
     mode: state.mode,
@@ -1807,6 +1834,37 @@ function nearestDownedPeer(range = TILE * 3) {
     .sort((a, b) => Math.hypot((a.tx ?? a.x) - player.x, (a.ty ?? a.y) - player.y) - Math.hypot((b.tx ?? b.x) - player.x, (b.ty ?? b.y) - player.y))[0];
 }
 
+function peerDrawX(peer) {
+  return peer.tx ?? peer.x;
+}
+
+function peerDrawY(peer) {
+  return peer.ty ?? peer.y;
+}
+
+function nearestVisiblePeer() {
+  return [...remotePlayers.values()]
+    .filter((peer) => peer.dimension === state.dimension)
+    .sort((a, b) => Math.hypot(peerDrawX(a) - player.x, peerDrawY(a) - player.y) - Math.hypot(peerDrawX(b) - player.x, peerDrawY(b) - player.y))[0];
+}
+
+function teleportToPeer() {
+  if (!multiplayer.enabled) return say("只有联机时才能传送。");
+  if (!isAdmin()) return say("游客不能传送，需要管理员权限。");
+  const target = nearestVisiblePeer();
+  if (!target) return say("没有可以传送的队友。");
+  const targetWorldX = target.worldX ?? localToWorldX(peerDrawX(target));
+  while (targetWorldX < WORLD_ORIGIN_COL * TILE) extendWorldLeft(24);
+  while (targetWorldX >= (WORLD_ORIGIN_COL + COLS) * TILE) extendWorldRight(24);
+  player.x = worldToLocalX(targetWorldX) - (target.facing || 1) * TILE;
+  player.y = peerDrawY(target);
+  player.vx = 0;
+  player.vy = 0;
+  ensureWorldAroundPlayer();
+  sendMultiplayerMove(performance.now(), true);
+  say("已传送到队友处。");
+}
+
 function tryCarryPeer(target = nearestDownedPeer()) {
   if (!multiplayer.enabled || state.downed) return false;
   if (state.carryingId) return false;
@@ -2029,6 +2087,7 @@ function draw() {
   drawRemotePlayers();
   particles.forEach((item) => { if (visible(item, 80)) drawParticle(item); });
   ctx.restore();
+  drawTeammateArrows();
   drawNight();
   const now = performance.now();
   if (now - lastUiUpdate > 160) {
@@ -2346,6 +2405,43 @@ function drawRemotePlayers() {
   }
 }
 
+function drawTeammateArrows() {
+  if (!multiplayer.enabled || remotePlayers.size === 0) return;
+  const margin = 38;
+  const centerX = view.w / 2;
+  const centerY = view.h / 2;
+  for (const peer of remotePlayers.values()) {
+    if (peer.dimension !== state.dimension) continue;
+    const sx = peerDrawX(peer) - camera.x;
+    const sy = peerDrawY(peer) - camera.y;
+    if (sx >= 0 && sx <= view.w && sy >= 0 && sy <= view.h) continue;
+    const dx = sx - centerX;
+    const dy = sy - centerY;
+    const angle = Math.atan2(dy, dx);
+    const edgeX = clamp(centerX + Math.cos(angle) * Math.min(centerX - margin, Math.abs(dx)), margin, view.w - margin);
+    const edgeY = clamp(centerY + Math.sin(angle) * Math.min(centerY - margin, Math.abs(dy)), margin, view.h - margin);
+    ctx.save();
+    ctx.translate(edgeX, edgeY);
+    ctx.rotate(angle);
+    ctx.fillStyle = peer.downed ? "rgba(239, 95, 95, .92)" : "rgba(255, 211, 108, .92)";
+    ctx.strokeStyle = "rgba(20, 18, 14, .72)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-10, -12);
+    ctx.lineTo(-4, 0);
+    ctx.lineTo(-10, 12);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#fff8db";
+    ctx.font = "12px Microsoft YaHei, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(peer.downed ? "倒地队友" : "队友", edgeX, edgeY + 28);
+  }
+}
+
 function drawEnemy(e) {
   ctx.save();
   ctx.translate(e.x, e.y);
@@ -2448,6 +2544,7 @@ function updateUi() {
   ui.lavaBucketText.textContent = state.inv.lavaBucket;
   ui.fireballText.textContent = state.inv.fireball;
   ui.portalText.textContent = state.inv.portal;
+  if (ui.teleportPeerBtn) ui.teleportPeerBtn.hidden = !multiplayer.enabled || !isAdmin();
 }
 
 function loop(now) {
@@ -2473,6 +2570,7 @@ window.addEventListener("keydown", (event) => {
   if (event.key.toLowerCase() === "f") shootBolt();
   if (event.key.toLowerCase() === "e") toggleNearestDoor();
   if (event.key.toLowerCase() === "x") dropCarriedPeer();
+  if (event.key.toLowerCase() === "z") teleportToPeer();
 });
 window.addEventListener("keyup", (event) => keys.delete(event.key.toLowerCase()));
 canvas.addEventListener("mousemove", (event) => {
@@ -2737,6 +2835,9 @@ document.querySelector("#craftBossBtn").addEventListener("click", craftBoss);
 document.querySelector("#craftPortalBtn").addEventListener("click", craftPortal);
 document.querySelector("#placePortalBtn").addEventListener("click", () => choosePlace("portal"));
 ui.voiceBtn.addEventListener("click", toggleVoice);
+ui.adminRoleBtn.addEventListener("click", () => setRole("admin"));
+ui.guestRoleBtn.addEventListener("click", () => setRole("guest"));
+ui.teleportPeerBtn.addEventListener("click", teleportToPeer);
 ui.survivalBtn.addEventListener("click", () => { clearSave(); resetGame("survival"); });
 ui.creativeBtn.addEventListener("click", () => { clearSave(); resetGame("creative"); });
 ui.multiplayerBtn.addEventListener("click", () => { clearSave(); resetGame("survival"); startMultiplayer(); });
@@ -2755,6 +2856,7 @@ ui.multiplayerText.addEventListener("click", () => {
 });
 ui.startOverlay.addEventListener("click", (event) => {
   if (event.target.closest(".mode-actions")) return;
+  if (event.target.closest(".permission-actions")) return;
   if (!loadGame()) resetGame("survival");
 });
 ui.toggleInventoryBtn.addEventListener("click", () => {
@@ -2770,6 +2872,7 @@ ui.pauseBtn.addEventListener("click", () => {
   say(state.paused ? "已暂停。" : "继续生存。");
 });
 
+updateRoleUi();
 resize();
 if (!prepareSavedGame()) seedWorld();
 state.last = performance.now();
