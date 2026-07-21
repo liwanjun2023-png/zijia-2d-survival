@@ -86,6 +86,11 @@ const bolts = [];
 const particles = [];
 const remotePlayers = new Map();
 const isTouchDevice = window.matchMedia ? matchMedia("(hover: none), (pointer: coarse)").matches : ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+const isMobileBuild = new URLSearchParams(location.search).get("mobile") === "1" || location.pathname === "/mobile";
+if (isMobileBuild) {
+  document.body.classList.add("mobile-build");
+  if (!isTouchDevice) document.body.classList.add("desktop-blocked");
+}
 const perf = {
   low: localStorage.getItem("zijia-low-quality") !== "0",
 };
@@ -212,7 +217,8 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "wechat-cn-1");
+  if (isMobileBuild) url.searchParams.set("mobile", "1");
+  url.searchParams.set("v", "china-mobile-1");
   return url.toString();
 }
 
@@ -749,7 +755,8 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "wechat-cn-1");
+  if (isMobileBuild) url.searchParams.set("mobile", "1");
+  url.searchParams.set("v", "china-mobile-1");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
