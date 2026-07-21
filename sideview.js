@@ -206,7 +206,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "smooth-net-1");
+  url.searchParams.set("v", "anti-twitch-1");
   return url.toString();
 }
 
@@ -615,7 +615,7 @@ function extendWorldLeft(count = 24) {
   }
   camera.x += shift;
   for (let col = 2; col < count - 2; col++) {
-    const seed = -count + col;
+    const seed = WORLD_ORIGIN_COL + col;
     if (state.dimension === "overworld" && shouldGrowTree(seed)) placeTreeAt(col, terrainSurface(seed));
   }
   if (state.dimension === "overworld") spawnAnimalsInRange(2, count - 2, 1);
@@ -695,7 +695,7 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "smooth-net-1");
+  url.searchParams.set("v", "anti-twitch-1");
   history.replaceState(null, "", url);
   clearSave();
   resetGame("survival");
@@ -809,7 +809,7 @@ function updateRemotePeer(peer) {
   if (current?.remoteT && remoteT && remoteT <= current.remoteT) return;
   const receivedAt = performance.now();
   const hugeJump = current && Math.hypot(peer.x - (current.tx ?? current.x), peer.y - (current.ty ?? current.y)) > TILE * 5;
-  const samples = current?.samples ? current.samples.slice(-8) : [];
+  const samples = current?.samples ? current.samples.slice(-14) : [];
   const last = samples[samples.length - 1] || current;
   const dt = last?.remoteT ? Math.max(0.025, Math.min(0.35, (remoteT - last.remoteT) / 1000)) : last?.receivedAt ? Math.max(0.025, Math.min(0.35, (receivedAt - last.receivedAt) / 1000)) : 0.08;
   const vx = Number.isFinite(peer.vx) ? peer.vx : last ? (peer.x - last.x) / dt : 0;
@@ -2221,7 +2221,7 @@ function drawPlayer() {
 function drawRemotePlayers() {
   if (!multiplayer.enabled) return;
   const now = performance.now();
-  const remoteBuffer = clamp(145 + multiplayer.jitter * 1.6 + multiplayer.latency * 0.12, 155, 290);
+  const remoteBuffer = clamp(190 + multiplayer.jitter * 2.1 + multiplayer.latency * 0.16, 210, 380);
   const renderServerAt = multiplayer.serverOffset ? now + multiplayer.serverOffset - remoteBuffer : 0;
   for (const peer of remotePlayers.values()) {
     if (peer.dimension !== state.dimension) continue;
@@ -2229,7 +2229,13 @@ function drawRemotePlayers() {
     const samples = peer.samples || [];
     let targetX = peer.tx ?? peer.x;
     let targetY = peer.ty ?? peer.y;
+    let interpolated = false;
     if (renderServerAt) {
+      if (samples[0] && renderServerAt <= samples[0].remoteT) {
+        targetX = samples[0].x;
+        targetY = samples[0].y;
+        interpolated = true;
+      }
       for (let i = 0; i < samples.length - 1; i += 1) {
         const a = samples[i];
         const b = samples[i + 1];
@@ -2237,10 +2243,16 @@ function drawRemotePlayers() {
           const mix = clamp((renderServerAt - a.remoteT) / Math.max(1, b.remoteT - a.remoteT), 0, 1);
           targetX = a.x + (b.x - a.x) * mix;
           targetY = a.y + (b.y - a.y) * mix;
+          interpolated = true;
           break;
         }
       }
     } else {
+      if (samples[0] && renderAt <= samples[0].receivedAt) {
+        targetX = samples[0].x;
+        targetY = samples[0].y;
+        interpolated = true;
+      }
       for (let i = 0; i < samples.length - 1; i += 1) {
         const a = samples[i];
         const b = samples[i + 1];
@@ -2248,24 +2260,25 @@ function drawRemotePlayers() {
           const mix = clamp((renderAt - a.receivedAt) / Math.max(1, b.receivedAt - a.receivedAt), 0, 1);
           targetX = a.x + (b.x - a.x) * mix;
           targetY = a.y + (b.y - a.y) * mix;
+          interpolated = true;
           break;
         }
       }
     }
     const newest = samples[samples.length - 1];
     const newestAge = renderServerAt && newest?.remoteT ? (renderServerAt - newest.remoteT) / 1000 : newest ? (renderAt - newest.receivedAt) / 1000 : 0;
-    if (newest && newestAge > 0) {
-      const age = Math.min(0.16, newestAge);
-      targetX = newest.x + clamp((newest.vx || 0) * age, -34, 34);
-      targetY = newest.y + clamp((newest.vy || 0) * age, -24, 24);
+    if (!interpolated && newest && newestAge > 0) {
+      const age = Math.min(0.12, newestAge);
+      targetX = newest.x + clamp((newest.vx || 0) * age, -24, 24);
+      targetY = newest.y + clamp((newest.vy || 0) * age, -16, 16);
     }
-    const blend = wsReady() ? 0.42 : 0.3;
+    const blend = wsReady() ? 0.34 : 0.28;
     peer.x += (targetX - peer.x) * blend;
     peer.y += (targetY - peer.y) * blend;
     const feetCol = Math.floor(peer.x / TILE);
     const groundY = findSurfaceY(feetCol) - 22;
-    if (isSolidTile(tileAt(feetCol, Math.floor((peer.y + 20) / TILE))) && peer.y > groundY) {
-      peer.y += (groundY - peer.y) * 0.65;
+    if (isSolidTile(tileAt(feetCol, Math.floor((peer.y + 20) / TILE))) && peer.y > groundY + TILE * 0.35) {
+      peer.y += (groundY - peer.y) * 0.35;
     }
     ctx.save();
     const carrier = peer.carriedBy ? remotePlayers.get(peer.carriedBy) : null;
