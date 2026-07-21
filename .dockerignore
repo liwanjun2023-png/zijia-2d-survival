@@ -1,5 +1,6 @@
 tunnel.*
-server.*
+server.out
+server.err
 *.zip
 tools/
 node_modules/
