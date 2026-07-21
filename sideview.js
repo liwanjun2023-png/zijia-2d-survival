@@ -85,7 +85,7 @@ const animals = [];
 const bolts = [];
 const particles = [];
 const remotePlayers = new Map();
-const isTouchDevice = matchMedia("(hover: none), (pointer: coarse)").matches;
+const isTouchDevice = window.matchMedia ? matchMedia("(hover: none), (pointer: coarse)").matches : ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 const perf = {
   low: localStorage.getItem("zijia-low-quality") !== "0",
 };
@@ -212,7 +212,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "mobile-controls-fix-1");
+  url.searchParams.set("v", "mobile-open-fix-1");
   return url.toString();
 }
 
@@ -749,7 +749,7 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "mobile-controls-fix-1");
+  url.searchParams.set("v", "mobile-open-fix-1");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
@@ -2786,8 +2786,46 @@ function pressRescueKey() {
   say("按住救键 8 秒复活旁边倒地队友。");
 }
 
+function pressMobileButton(button, event, point = event) {
+  event.preventDefault();
+  if (point.pointerId !== undefined && button.setPointerCapture) {
+    try { button.setPointerCapture(point.pointerId); } catch { /* Some mobile browsers do not support pointer capture. */ }
+  }
+  if (button.dataset.action === "editKeys") {
+    toggleMobileKeyEditor();
+    return;
+  }
+  if (button.dataset.action === "quality") {
+    toggleLowQuality();
+    return;
+  }
+  if (mobileKeyEditor.editing) {
+    startMobileButtonDrag(button, point);
+    return;
+  }
+  button.classList.add("active");
+  const key = button.dataset.key;
+  if (key) {
+    pressMobileKey(key);
+    return;
+  }
+  const action = button.dataset.action;
+  if (action === "shoot") {
+    aimAhead(120);
+    shootBolt();
+  } else if (action === "door") {
+    toggleNearestDoor();
+  } else if (action === "rescue") {
+    pressRescueKey();
+  } else if (action === "inventory") {
+    ui.toggleInventoryBtn.click();
+  }
+}
+
 document.querySelectorAll(".mobile-btn").forEach((button) => {
   button.addEventListener("pointerdown", (event) => {
+    pressMobileButton(button, event);
+    return;
     event.preventDefault();
     button.setPointerCapture(event.pointerId);
     if (button.dataset.action === "editKeys") {
@@ -2826,6 +2864,16 @@ document.querySelectorAll(".mobile-btn").forEach((button) => {
   button.addEventListener("pointerup", () => releaseMobileButton(button));
   button.addEventListener("pointercancel", () => releaseMobileButton(button));
   button.addEventListener("lostpointercapture", () => releaseMobileButton(button));
+  if (!window.PointerEvent) {
+    button.addEventListener("touchstart", (event) => {
+      pressMobileButton(button, event, event.changedTouches[0] || event.touches[0] || event);
+    }, { passive: false });
+    button.addEventListener("touchmove", (event) => {
+      if (mobileKeyEditor.editing) moveMobileButton(event.changedTouches[0] || event.touches[0] || event);
+    }, { passive: false });
+    button.addEventListener("touchend", () => releaseMobileButton(button));
+    button.addEventListener("touchcancel", () => releaseMobileButton(button));
+  }
 });
 
 applyMobileKeyLayout();
