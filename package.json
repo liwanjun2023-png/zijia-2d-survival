@@ -1,0 +1,13 @@
+{
+  "name": "zijia-2d-survival",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check sideview.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
