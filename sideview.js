@@ -64,6 +64,7 @@ let WORLD_W = COLS * TILE;
 let WORLD_ORIGIN_COL = 0;
 const WORLD_H = ROWS * TILE;
 const PHASE_SECONDS = 300;
+const SAVE_PREFIX = "zijia-mining-survival-save";
 const SAVE_KEY = "zijia-mining-survival-save-v1";
 const MOBILE_KEYS_KEY = "zijia-mobile-key-layout-v1";
 const view = { w: 0, h: 0 };
@@ -206,7 +207,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "anti-twitch-1");
+  url.searchParams.set("v", "clear-saves-1");
   return url.toString();
 }
 
@@ -404,6 +405,13 @@ function saveGame() {
 
 function clearSave() {
   localStorage.removeItem(SAVE_KEY);
+}
+
+function clearAllGameSaves() {
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(SAVE_PREFIX)) localStorage.removeItem(key);
+  }
 }
 
 function loadGame() {
@@ -695,9 +703,9 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "anti-twitch-1");
+  url.searchParams.set("v", "clear-saves-1");
   history.replaceState(null, "", url);
-  clearSave();
+  clearAllGameSaves();
   resetGame("survival");
   startMultiplayer("新的联机存档已开启");
 }
