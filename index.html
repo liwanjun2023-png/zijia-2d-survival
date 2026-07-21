@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>子嘉矿洞生存</title>
-    <link rel="stylesheet" href="./styles.css?v=tree-worldcoords-1" />
+    <link rel="stylesheet" href="./styles.css?v=admin-arrow-1" />
   </head>
   <body>
     <main class="game-shell">
@@ -154,12 +154,17 @@
           <button id="multiplayerBtn" type="button">联机模式</button>
           <button id="newMultiplayerBtn" type="button">新的联机存档</button>
         </div>
+        <div class="permission-actions" aria-label="联机权限">
+          <button id="adminRoleBtn" type="button">管理员</button>
+          <button id="guestRoleBtn" type="button">游客</button>
+        </div>
       </section>
 
       <div id="sharePanel" class="share-panel hidden" aria-label="联机分享">
         <label>房间号 <input id="roomCodeInput" type="text" readonly value="zijia" /></label>
         <button id="copyRoomBtn" type="button">复制房间号</button>
         <button id="copyLinkBtn" type="button">复制联机地址</button>
+        <button id="teleportPeerBtn" type="button">传送队友</button>
         <button id="hideShareBtn" type="button">隐藏</button>
       </div>
 
@@ -171,6 +176,6 @@
       </div>
     </main>
 
-    <script src="./sideview.js?v=tree-worldcoords-1"></script>
+    <script src="./sideview.js?v=admin-arrow-1"></script>
   </body>
 </html>
