@@ -212,7 +212,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "mobile-open-fix-1");
+  url.searchParams.set("v", "wechat-cn-1");
   return url.toString();
 }
 
@@ -221,8 +221,8 @@ function isAdmin() {
 }
 
 function updateRoleUi() {
-  ui.adminRoleBtn?.classList.toggle("active", isAdmin());
-  ui.guestRoleBtn?.classList.toggle("active", !isAdmin());
+  if (ui.adminRoleBtn) ui.adminRoleBtn.classList.toggle("active", isAdmin());
+  if (ui.guestRoleBtn) ui.guestRoleBtn.classList.toggle("active", !isAdmin());
   if (ui.teleportPeerBtn) ui.teleportPeerBtn.hidden = !multiplayer.enabled || !isAdmin();
 }
 
@@ -294,16 +294,16 @@ function makeTile(type, placed = false) {
 }
 
 function isSolidTile(tile) {
-  return tile && !tileInfo[tile.type]?.liquid;
+  return tile && !(tileInfo[tile.type] && tileInfo[tile.type].liquid);
 }
 
 function isLiquidTile(tile, type) {
-  return tile && tileInfo[tile.type]?.liquid && (!type || tile.type === type);
+  return tile && tileInfo[tile.type] && tileInfo[tile.type].liquid && (!type || tile.type === type);
 }
 
 function tileAt(col, row) {
   if (col < 0 || row < 0 || col >= COLS || row >= ROWS) return makeTile("stone");
-  return tiles[row]?.[col] || null;
+  return (tiles[row] && tiles[row][col]) || null;
 }
 
 function setTile(col, row, tile) {
@@ -324,8 +324,8 @@ function queueBlockChange(col, row, tile) {
     worldCol: WORLD_ORIGIN_COL + col,
     col,
     row,
-    type: tile?.type || null,
-    placed: !!tile?.placed,
+    type: tile ? tile.type : null,
+    placed: !!(tile && tile.placed),
   });
   if (multiplayer.pendingBlockEvents.length > 160) multiplayer.pendingBlockEvents.splice(0, multiplayer.pendingBlockEvents.length - 160);
 }
@@ -512,7 +512,7 @@ function loadGame() {
     });
     ui.startOverlay.classList.add("hidden");
     applyInventoryVisibility();
-    if (save.state.multiplayer?.enabled) {
+    if (save.state.multiplayer && save.state.multiplayer.enabled) {
       multiplayer.room = save.state.multiplayer.room || multiplayer.room;
       multiplayer.role = save.state.multiplayer.role === "admin" ? "admin" : "guest";
       localStorage.setItem(ROLE_KEY, multiplayer.role);
@@ -583,10 +583,10 @@ function spawnAnimalsInRange(minCol, maxCol, count, rng = Math.random) {
 function placeTreeAt(col, surface) {
   if (col < 3 || col >= COLS - 3 || surface < 8) return;
   let ground = Math.round(surface);
-  if (tileAt(col, ground)?.type !== "grass") {
+  if ((tileAt(col, ground) && tileAt(col, ground).type) !== "grass") {
     ground = Math.floor(findSurfaceY(col) / TILE);
   }
-  if (tileAt(col, ground)?.type !== "grass") return;
+  if ((tileAt(col, ground) && tileAt(col, ground).type) !== "grass") return;
   for (let row = ground - 7; row < ground; row++) if (tileAt(col, row)) return;
   for (let trunk = 1; trunk <= 4; trunk++) setTile(col, ground - trunk, makeTile("wood"));
   for (let dx = -2; dx <= 2; dx++) {
@@ -662,7 +662,7 @@ function extendWorldLeft(count = 24) {
   for (const item of [...structures, ...enemies, ...animals, ...bolts, ...particles]) item.x += shift;
   for (const peer of remotePlayers.values()) {
     peer.x += shift;
-    peer.tx = (peer.tx ?? peer.x) + shift;
+    peer.tx = (peer.tx != null ? peer.tx : peer.x) + shift;
     for (const sample of peer.samples || []) sample.x += shift;
   }
   camera.x += shift;
@@ -692,7 +692,7 @@ function resetGame(mode = "survival") {
   if (voice.enabled) toggleVoice();
   multiplayer.enabled = false;
   multiplayer.online = false;
-  multiplayer.ws?.close();
+  if (multiplayer.ws) multiplayer.ws.close();
   multiplayer.ws = null;
   multiplayer.wsConnecting = false;
   for (const entry of p2p.peers.values()) entry.pc.close();
@@ -749,7 +749,7 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "mobile-open-fix-1");
+  url.searchParams.set("v", "wechat-cn-1");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
@@ -757,7 +757,7 @@ function startNewMultiplayerSave() {
 }
 
 function wsReady() {
-  return multiplayer.ws?.readyState === WebSocket.OPEN;
+  return multiplayer.ws && multiplayer.ws.readyState === WebSocket.OPEN;
 }
 
 function connectMultiplayerSocket() {
@@ -784,7 +784,7 @@ function connectMultiplayerSocket() {
         multiplayer.latency = multiplayer.latency * 0.82 + (receivedAt - Number(data.clientT)) * 0.18;
         return;
       }
-      if (data.type === "peer" && data.peer?.id !== multiplayer.id) updateRemotePeer(data.peer);
+      if (data.type === "peer" && data.peer && data.peer.id !== multiplayer.id) updateRemotePeer(data.peer);
       if (data.type === "peers") {
         if (multiplayer.lastPeerPacketAt) {
           const interval = receivedAt - multiplayer.lastPeerPacketAt;
@@ -879,13 +879,15 @@ function updateRemotePeer(peer) {
   peer = normalizeRemotePeer(peer);
   const current = remotePlayers.get(peer.id);
   const remoteT = Number(peer.serverAt) || Number(peer.serverT) || Number(peer.t) || 0;
-  if (current?.remoteT && remoteT && remoteT <= current.remoteT) return;
+  if (current && current.remoteT && remoteT && remoteT <= current.remoteT) return;
   const receivedAt = performance.now();
-  const jumpDistance = current ? Math.hypot(peer.x - (current.tx ?? current.x), peer.y - (current.ty ?? current.y)) : 0;
+  const currentX = current ? (current.tx != null ? current.tx : current.x) : 0;
+  const currentY = current ? (current.ty != null ? current.ty : current.y) : 0;
+  const jumpDistance = current ? Math.hypot(peer.x - currentX, peer.y - currentY) : 0;
   const trueTeleport = current && (current.dimension !== peer.dimension || jumpDistance > TILE * 36 || !!peer.carriedBy || !!current.carriedBy);
-  const samples = current?.samples ? current.samples.slice(-18) : [];
+  const samples = current && current.samples ? current.samples.slice(-18) : [];
   const last = samples[samples.length - 1] || current;
-  const dt = last?.remoteT ? Math.max(0.025, Math.min(0.35, (remoteT - last.remoteT) / 1000)) : last?.receivedAt ? Math.max(0.025, Math.min(0.35, (receivedAt - last.receivedAt) / 1000)) : 0.08;
+  const dt = last && last.remoteT ? Math.max(0.025, Math.min(0.35, (remoteT - last.remoteT) / 1000)) : last && last.receivedAt ? Math.max(0.025, Math.min(0.35, (receivedAt - last.receivedAt) / 1000)) : 0.08;
   const vx = Number.isFinite(peer.vx) ? peer.vx : last ? (peer.x - last.x) / dt : 0;
   const vy = Number.isFinite(peer.vy) ? peer.vy : last ? (peer.y - last.y) / dt : 0;
   samples.push({ x: peer.x, y: peer.y, receivedAt, remoteT, vx, vy });
@@ -1022,7 +1024,7 @@ function sendDirectMove() {
   const packet = JSON.stringify({ type: "peer", peer: playerPacket() });
   let sent = false;
   for (const entry of p2p.peers.values()) {
-    if (entry.channel?.readyState === "open") {
+    if (entry.channel && entry.channel.readyState === "open") {
       entry.channel.send(packet);
       sent = true;
     }
@@ -1037,7 +1039,7 @@ function setupDataChannel(peerId, channel) {
   channel.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      if (data.type === "peer" && data.peer?.id !== multiplayer.id) updateRemotePeer({ ...data.peer, direct: true, serverT: Date.now() });
+      if (data.type === "peer" && data.peer && data.peer.id !== multiplayer.id) updateRemotePeer({ ...data.peer, direct: true, serverT: Date.now() });
     } catch {
       // Ignore malformed direct packets.
     }
@@ -1131,7 +1133,8 @@ function createVoicePeer(peerId, initiator = false) {
     if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
       pc.close();
       voice.peers.delete(peerId);
-      document.querySelector(`#voice-${peerId}`)?.remove();
+      const audio = document.querySelector(`#voice-${peerId}`);
+      if (audio) audio.remove();
     }
   };
   if (initiator) {
@@ -1190,7 +1193,8 @@ function maintainVoicePeers(peers) {
     if (live.has(peerId)) continue;
     entry.pc.close();
     voice.peers.delete(peerId);
-    document.querySelector(`#voice-${peerId}`)?.remove();
+    const audio = document.querySelector(`#voice-${peerId}`);
+    if (audio) audio.remove();
   }
 }
 
@@ -1198,7 +1202,7 @@ async function toggleVoice() {
   if (voice.enabled) {
     for (const entry of voice.peers.values()) entry.pc.close();
     voice.peers.clear();
-    voice.stream?.getTracks().forEach((track) => track.stop());
+    if (voice.stream) voice.stream.getTracks().forEach((track) => track.stop());
     voice.stream = null;
     voice.enabled = false;
     ui.voiceBtn.textContent = "麦克风";
@@ -1206,7 +1210,7 @@ async function toggleVoice() {
     return;
   }
   if (!multiplayer.enabled) return say("先进入联机模式，再打开麦克风。");
-  if (!navigator.mediaDevices?.getUserMedia) return say("当前浏览器不支持麦克风，或页面不是 HTTPS。");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return say("当前浏览器不支持麦克风，或页面不是 HTTPS。");
   try {
     voice.stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     voice.enabled = true;
@@ -1774,7 +1778,8 @@ function updateLiquidHazards(dt) {
   const bottom = Math.floor((player.y + player.h / 2) / TILE);
   for (let row = top; row <= bottom; row++) {
     for (let col = left; col <= right; col++) {
-      if (tileAt(col, row)?.type === "lava") {
+      const tile = tileAt(col, row);
+      if (tile && tile.type === "lava") {
         damagePlayer(18 * dt);
         if (Math.random() < 0.18) burst(player.x, player.y, "#ff8a2b", 2);
         return;
@@ -1840,17 +1845,22 @@ function updateRegen(dt) {
 }
 
 function nearestDownedPeer(range = TILE * 3) {
+  function peerDistance(peer) {
+    const px = peer.tx != null ? peer.tx : peer.x;
+    const py = peer.ty != null ? peer.ty : peer.y;
+    return Math.hypot(px - player.x, py - player.y);
+  }
   return [...remotePlayers.values()]
-    .filter((peer) => peer.downed && peer.dimension === state.dimension && Math.hypot((peer.tx ?? peer.x) - player.x, (peer.ty ?? peer.y) - player.y) <= range)
-    .sort((a, b) => Math.hypot((a.tx ?? a.x) - player.x, (a.ty ?? a.y) - player.y) - Math.hypot((b.tx ?? b.x) - player.x, (b.ty ?? b.y) - player.y))[0];
+    .filter((peer) => peer.downed && peer.dimension === state.dimension && peerDistance(peer) <= range)
+    .sort((a, b) => peerDistance(a) - peerDistance(b))[0];
 }
 
 function peerDrawX(peer) {
-  return peer.tx ?? peer.x;
+  return peer.tx != null ? peer.tx : peer.x;
 }
 
 function peerDrawY(peer) {
-  return peer.ty ?? peer.y;
+  return peer.ty != null ? peer.ty : peer.y;
 }
 
 function nearestVisiblePeer() {
@@ -1864,7 +1874,7 @@ function teleportToPeer() {
   if (!isAdmin()) return say("游客不能传送，需要管理员权限。");
   const target = nearestVisiblePeer();
   if (!target) return say("没有可以传送的队友。");
-  const targetWorldX = target.worldX ?? localToWorldX(peerDrawX(target));
+  const targetWorldX = target.worldX != null ? target.worldX : localToWorldX(peerDrawX(target));
   while (targetWorldX < WORLD_ORIGIN_COL * TILE) extendWorldLeft(24);
   while (targetWorldX >= (WORLD_ORIGIN_COL + COLS) * TILE) extendWorldRight(24);
   player.x = worldToLocalX(targetWorldX) - (target.facing || 1) * TILE;
@@ -1898,8 +1908,8 @@ function updateRescue(dt) {
   if (state.carriedBy) {
     const carrier = remotePlayers.get(state.carriedBy);
     if (carrier) {
-      player.x = (carrier.tx ?? carrier.x) - (carrier.facing || 1) * 22;
-      player.y = (carrier.ty ?? carrier.y) - 6;
+      player.x = (carrier.tx != null ? carrier.tx : carrier.x) - (carrier.facing || 1) * 22;
+      player.y = (carrier.ty != null ? carrier.ty : carrier.y) - 6;
       player.vx = 0;
       player.vy = 0;
     }
@@ -2333,8 +2343,8 @@ function drawRemotePlayers() {
     if (peer.dimension !== state.dimension) continue;
     const renderAt = now - (wsReady() ? remoteBuffer : 240);
     const samples = peer.samples || [];
-    let targetX = peer.tx ?? peer.x;
-    let targetY = peer.ty ?? peer.y;
+    let targetX = peer.tx != null ? peer.tx : peer.x;
+    let targetY = peer.ty != null ? peer.ty : peer.y;
     let interpolated = false;
     if (renderServerAt) {
       if (samples[0] && renderServerAt <= samples[0].remoteT) {
@@ -2372,7 +2382,7 @@ function drawRemotePlayers() {
       }
     }
     const newest = samples[samples.length - 1];
-    const newestAge = renderServerAt && newest?.remoteT ? (renderServerAt - newest.remoteT) / 1000 : newest ? (renderAt - newest.receivedAt) / 1000 : 0;
+    const newestAge = renderServerAt && newest && newest.remoteT ? (renderServerAt - newest.remoteT) / 1000 : newest ? (renderAt - newest.receivedAt) / 1000 : 0;
     if (!interpolated && newest && newestAge > 0) {
       const age = Math.min(0.12, newestAge);
       targetX = newest.x + clamp((newest.vx || 0) * age, -24, 24);
@@ -2390,8 +2400,8 @@ function drawRemotePlayers() {
     }
     ctx.save();
     const carrier = peer.carriedBy ? remotePlayers.get(peer.carriedBy) : null;
-    const drawX = carrier ? (carrier.tx ?? carrier.x) - (carrier.facing || 1) * 22 : peer.x;
-    const drawY = carrier ? (carrier.ty ?? carrier.y) - 6 : peer.y;
+    const drawX = carrier ? (carrier.tx != null ? carrier.tx : carrier.x) - (carrier.facing || 1) * 22 : peer.x;
+    const drawY = carrier ? (carrier.ty != null ? carrier.ty : carrier.y) - 6 : peer.y;
     ctx.translate(drawX, drawY);
     ctx.globalAlpha = 0.82;
     ctx.fillStyle = peer.diamondArmor ? "#78eff2" : peer.armor > 0 ? "#d2d7dc" : "#7a66d8";
@@ -2612,7 +2622,11 @@ canvas.addEventListener("mousedown", (event) => {
   if (event.button === 1) shootBolt();
   if (event.button === 0) {
     const target = worldMouse();
-    const downedPeer = [...remotePlayers.values()].find((peer) => peer.downed && Math.hypot((peer.tx ?? peer.x) - target.x, (peer.ty ?? peer.y) - target.y) < 42 && Math.hypot((peer.tx ?? peer.x) - player.x, (peer.ty ?? peer.y) - player.y) <= TILE * 3);
+    const downedPeer = [...remotePlayers.values()].find((peer) => {
+      const px = peer.tx != null ? peer.tx : peer.x;
+      const py = peer.ty != null ? peer.ty : peer.y;
+      return peer.downed && Math.hypot(px - target.x, py - target.y) < 42 && Math.hypot(px - player.x, py - player.y) <= TILE * 3;
+    });
     if (downedPeer && tryCarryPeer(downedPeer)) return;
     mouse.down = true;
     mineOrAttack();
@@ -2665,7 +2679,7 @@ canvas.addEventListener("touchcancel", () => {
 }, { passive: false });
 
 function releaseMobileButton(button) {
-  if (mobileKeyEditor.drag?.button === button) {
+  if (mobileKeyEditor.drag && mobileKeyEditor.drag.button === button) {
     stopMobileButtonDrag();
     return;
   }
