@@ -212,7 +212,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "admin-arrow-1");
+  url.searchParams.set("v", "jitter-smooth-1");
   return url.toString();
 }
 
@@ -739,7 +739,7 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "admin-arrow-1");
+  url.searchParams.set("v", "jitter-smooth-1");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
@@ -871,8 +871,9 @@ function updateRemotePeer(peer) {
   const remoteT = Number(peer.serverAt) || Number(peer.serverT) || Number(peer.t) || 0;
   if (current?.remoteT && remoteT && remoteT <= current.remoteT) return;
   const receivedAt = performance.now();
-  const hugeJump = current && Math.hypot(peer.x - (current.tx ?? current.x), peer.y - (current.ty ?? current.y)) > TILE * 5;
-  const samples = current?.samples ? current.samples.slice(-14) : [];
+  const jumpDistance = current ? Math.hypot(peer.x - (current.tx ?? current.x), peer.y - (current.ty ?? current.y)) : 0;
+  const trueTeleport = current && (current.dimension !== peer.dimension || jumpDistance > TILE * 36 || !!peer.carriedBy || !!current.carriedBy);
+  const samples = current?.samples ? current.samples.slice(-18) : [];
   const last = samples[samples.length - 1] || current;
   const dt = last?.remoteT ? Math.max(0.025, Math.min(0.35, (remoteT - last.remoteT) / 1000)) : last?.receivedAt ? Math.max(0.025, Math.min(0.35, (receivedAt - last.receivedAt) / 1000)) : 0.08;
   const vx = Number.isFinite(peer.vx) ? peer.vx : last ? (peer.x - last.x) / dt : 0;
@@ -880,15 +881,15 @@ function updateRemotePeer(peer) {
   samples.push({ x: peer.x, y: peer.y, receivedAt, remoteT, vx, vy });
   remotePlayers.set(peer.id, current ? {
     ...peer,
-    x: hugeJump ? peer.x : current.x,
-    y: hugeJump ? peer.y : current.y,
+    x: trueTeleport ? peer.x : current.x,
+    y: trueTeleport ? peer.y : current.y,
     tx: peer.x,
     ty: peer.y,
     vx,
     vy,
     remoteT,
     receivedAt,
-    samples: hugeJump ? [{ x: peer.x, y: peer.y, receivedAt, remoteT, vx: 0, vy: 0 }] : samples,
+    samples: trueTeleport ? [{ x: peer.x, y: peer.y, receivedAt, remoteT, vx: 0, vy: 0 }] : samples,
   } : { ...peer, x: peer.x, y: peer.y, tx: peer.x, ty: peer.y, vx, vy, remoteT, receivedAt, samples });
 }
 
@@ -1026,7 +1027,7 @@ function setupDataChannel(peerId, channel) {
   channel.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      if (data.type === "peer" && data.peer?.id !== multiplayer.id) updateRemotePeer({ ...data.peer, direct: true, serverT: performance.now() });
+      if (data.type === "peer" && data.peer?.id !== multiplayer.id) updateRemotePeer({ ...data.peer, direct: true, serverT: Date.now() });
     } catch {
       // Ignore malformed direct packets.
     }
@@ -2367,9 +2368,11 @@ function drawRemotePlayers() {
       targetX = newest.x + clamp((newest.vx || 0) * age, -24, 24);
       targetY = newest.y + clamp((newest.vy || 0) * age, -16, 16);
     }
-    const blend = wsReady() ? 0.34 : 0.28;
-    peer.x += (targetX - peer.x) * blend;
-    peer.y += (targetY - peer.y) * blend;
+    const blend = wsReady() ? 0.24 : 0.22;
+    const dx = (targetX - peer.x) * blend;
+    const dy = (targetY - peer.y) * blend;
+    peer.x += clamp(dx, -18, 18);
+    peer.y += clamp(dy, -14, 14);
     const feetCol = Math.floor(peer.x / TILE);
     const groundY = findSurfaceY(feetCol) - 22;
     if (isSolidTile(tileAt(feetCol, Math.floor((peer.y + 20) / TILE))) && peer.y > groundY + TILE * 0.35) {
