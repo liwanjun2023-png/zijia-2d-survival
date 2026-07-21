@@ -207,7 +207,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "clear-saves-1");
+  url.searchParams.set("v", "tree-worldcoords-1");
   return url.toString();
 }
 
@@ -284,6 +284,14 @@ function tileAt(col, row) {
 
 function setTile(col, row, tile) {
   if (col >= 0 && row >= 0 && col < COLS && row < ROWS) tiles[row][col] = tile;
+}
+
+function localToWorldX(x) {
+  return x + WORLD_ORIGIN_COL * TILE;
+}
+
+function worldToLocalX(x) {
+  return x - WORLD_ORIGIN_COL * TILE;
 }
 
 function queueBlockChange(col, row, tile) {
@@ -502,11 +510,8 @@ function seedWorld() {
   WORLD_W = COLS * TILE;
   tiles.length = 0;
   for (let row = 0; row < ROWS; row++) tiles.push(Array(COLS).fill(null));
-  const heights = [];
-  for (let col = 0; col < COLS; col++) heights[col] = SURFACE + Math.round(Math.sin(col * 0.23) * 2 + Math.sin(col * 0.07) * 2);
-
   for (let col = 0; col < COLS; col++) {
-    const surface = heights[col];
+    const surface = terrainSurface(WORLD_ORIGIN_COL + col);
     for (let row = surface; row < ROWS; row++) {
       let type = row === surface ? "grass" : row < surface + 5 ? "dirt" : "stone";
       const depth = row - surface;
@@ -522,8 +527,7 @@ function seedWorld() {
 
   for (let col = 5; col < COLS - 4; col += seededInt(rng, 5, 9)) {
     if (rng() > 0.78) continue;
-    const surface = heights[col];
-    placeTreeAt(col, surface);
+    placeTreeAt(col, terrainSurface(WORLD_ORIGIN_COL + col));
   }
 
   structures.length = 0;
@@ -544,10 +548,16 @@ function spawnAnimalsInRange(minCol, maxCol, count, rng = Math.random) {
 
 function placeTreeAt(col, surface) {
   if (col < 3 || col >= COLS - 3 || surface < 8) return;
-  for (let trunk = 1; trunk <= 4; trunk++) setTile(col, surface - trunk, makeTile("wood"));
+  let ground = Math.round(surface);
+  if (tileAt(col, ground)?.type !== "grass") {
+    ground = Math.floor(findSurfaceY(col) / TILE);
+  }
+  if (tileAt(col, ground)?.type !== "grass") return;
+  for (let row = ground - 7; row < ground; row++) if (tileAt(col, row)) return;
+  for (let trunk = 1; trunk <= 4; trunk++) setTile(col, ground - trunk, makeTile("wood"));
   for (let dx = -2; dx <= 2; dx++) {
     for (let dy = -7; dy <= -4; dy++) {
-      if (Math.abs(dx) + Math.abs(dy + 5) <= 4) setTile(col + dx, surface + dy, makeTile("leaf"));
+      if (Math.abs(dx) + Math.abs(dy + 5) <= 4 && !tileAt(col + dx, ground + dy)) setTile(col + dx, ground + dy, makeTile("leaf"));
     }
   }
 }
@@ -703,7 +713,7 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "clear-saves-1");
+  url.searchParams.set("v", "tree-worldcoords-1");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
@@ -766,11 +776,15 @@ function connectMultiplayerSocket() {
 }
 
 function playerPacket() {
+  const worldX = localToWorldX(player.x);
   return {
     id: multiplayer.id,
     room: multiplayer.room,
     t: performance.now(),
-    x: player.x,
+    x: worldX,
+    worldX,
+    localX: player.x,
+    originCol: WORLD_ORIGIN_COL,
     y: player.y,
     vx: player.vx,
     vy: player.vy,
@@ -797,10 +811,11 @@ function sendMultiplayerMove(now, force = false) {
     return;
   }
   const last = multiplayer.lastMoveSent;
-  const moved = !last || Math.abs(player.x - last.x) > 1.2 || Math.abs(player.y - last.y) > 1.2 || player.facing !== last.facing || state.dimension !== last.dimension;
+  const worldX = localToWorldX(player.x);
+  const moved = !last || Math.abs(worldX - last.worldX) > 1.2 || Math.abs(player.y - last.y) > 1.2 || player.facing !== last.facing || state.dimension !== last.dimension;
   if (!force && now - multiplayer.lastWsSend < (moved ? 50 : 180)) return;
   multiplayer.lastWsSend = now;
-  multiplayer.lastMoveSent = { x: player.x, y: player.y, facing: player.facing, dimension: state.dimension };
+  multiplayer.lastMoveSent = { worldX, y: player.y, facing: player.facing, dimension: state.dimension };
   multiplayer.ws.send(JSON.stringify({ type: "move", ...playerPacket() }));
 }
 
@@ -811,7 +826,20 @@ function sendMultiplayerPing(now) {
   multiplayer.ws.send(JSON.stringify({ type: "ping", clientT: now }));
 }
 
+function normalizeRemotePeer(peer) {
+  const worldX = Number.isFinite(Number(peer.worldX)) ? Number(peer.worldX) : Number(peer.x);
+  return {
+    ...peer,
+    worldX,
+    x: worldToLocalX(worldX),
+    y: Number(peer.y) || 0,
+    vx: Number(peer.vx) || 0,
+    vy: Number(peer.vy) || 0,
+  };
+}
+
 function updateRemotePeer(peer) {
+  peer = normalizeRemotePeer(peer);
   const current = remotePlayers.get(peer.id);
   const remoteT = Number(peer.serverAt) || Number(peer.serverT) || Number(peer.t) || 0;
   if (current?.remoteT && remoteT && remoteT <= current.remoteT) return;
