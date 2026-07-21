@@ -2087,8 +2087,8 @@ function draw() {
   drawRemotePlayers();
   particles.forEach((item) => { if (visible(item, 80)) drawParticle(item); });
   ctx.restore();
-  drawTeammateArrows();
   drawNight();
+  drawTeammateArrows();
   const now = performance.now();
   if (now - lastUiUpdate > 160) {
     lastUiUpdate = now;
