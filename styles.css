@@ -27,7 +27,7 @@ button { color: inherit; font: inherit; }
   background: #16211d;
 }
 #game { display: block; width: 100%; height: 100%; cursor: crosshair; }
-.hud, .inventory, .help, .message, .start-overlay, .mobile-controls, .share-panel, .rotate-lock { position: absolute; z-index: 3; }
+.hud, .inventory, .help, .message, .start-overlay, .mobile-controls, .share-panel, .rotate-lock, .desktop-blocker { position: absolute; z-index: 3; }
 .hud {
   top: 12px; left: 12px; right: 12px;
   display: grid; grid-template-columns: minmax(210px, .9fr) minmax(320px, 1.2fr) auto;
@@ -209,6 +209,32 @@ meter { width: 100%; height: 12px; }
 }
 .rotate-lock strong { font-size: 34px; }
 .rotate-lock span { color: var(--muted); font-size: 16px; }
+.desktop-blocker {
+  display: none;
+  inset: 0;
+  z-index: 10;
+  place-content: center;
+  gap: 12px;
+  padding: 28px;
+  background: rgba(6, 9, 9, .97);
+  text-align: center;
+}
+.desktop-blocker strong { font-size: clamp(30px, 6vw, 52px); }
+.desktop-blocker span { color: var(--muted); font-size: 17px; }
+body.mobile-build .mobile-controls { display: flex; }
+body.mobile-build .help { display: none; }
+body.mobile-build.desktop-blocked .desktop-blocker { display: grid; }
+body.mobile-build.desktop-blocked canvas,
+body.mobile-build.desktop-blocked .hud,
+body.mobile-build.desktop-blocked .inventory,
+body.mobile-build.desktop-blocked .help,
+body.mobile-build.desktop-blocked .message,
+body.mobile-build.desktop-blocked .start-overlay,
+body.mobile-build.desktop-blocked .mobile-controls,
+body.mobile-build.desktop-blocked .share-panel,
+body.mobile-build.desktop-blocked .rotate-lock {
+  display: none;
+}
 .hidden { display: none; }
 @media (hover: none) and (orientation: portrait), (pointer: coarse) and (orientation: portrait), (max-width: 900px) and (orientation: portrait) {
   .game-shell {
