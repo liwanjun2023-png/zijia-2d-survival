@@ -132,6 +132,7 @@ function makePlayer(data, id, room) {
     carryingId: String(data.carryingId || "").slice(0, 40),
     hp: Number(data.hp) || 0,
     armor: Number(data.armor) || 0,
+    role: data.role === "admin" ? "admin" : "guest",
     facing: Number(data.facing) || 1,
     dimension: data.dimension === "nether" ? "nether" : "overworld",
     mode: data.mode === "creative" ? "creative" : "survival",
