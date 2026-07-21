@@ -114,10 +114,14 @@ function signalKey(room, id) {
 }
 
 function makePlayer(data, id, room) {
+  const x = Number.isFinite(Number(data.worldX)) ? Number(data.worldX) : Number(data.x) || 0;
   return {
     id,
     room,
-    x: Number(data.x) || 0,
+    x,
+    worldX: x,
+    localX: Number(data.localX) || 0,
+    originCol: Number(data.originCol) || 0,
     y: Number(data.y) || 0,
     vx: Number(data.vx) || 0,
     vy: Number(data.vy) || 0,
