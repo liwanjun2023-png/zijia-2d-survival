@@ -325,6 +325,11 @@ async function handleApi(req, res, url) {
 }
 
 async function handleStatic(req, res, url) {
+  if (url.pathname === "/mobile") {
+    const target = `/?mobile=1&v=china-mobile-1${url.searchParams.get("room") ? `&room=${encodeURIComponent(url.searchParams.get("room"))}` : ""}`;
+    res.writeHead(302, { Location: target, "Cache-Control": "no-store" });
+    return res.end();
+  }
   const requested = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
   const filePath = normalize(join(root, requested));
   if (!filePath.startsWith(root)) {
