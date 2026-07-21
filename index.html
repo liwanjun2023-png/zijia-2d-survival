@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>子嘉矿洞生存</title>
+    <link rel="stylesheet" href="./styles.css?v=smooth-net-1" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <canvas id="game" width="1280" height="720" aria-label="子嘉矿洞生存游戏画布"></canvas>
+
+      <section class="hud" aria-label="状态栏">
+        <div class="brand">
+          <h1>子嘉矿洞生存</h1>
+          <p id="phaseText">白天 · 横版侧视，5:00 后入夜</p>
+        </div>
+        <div class="meters">
+          <label>生命 <meter id="hpMeter" max="100" value="100"></meter><b id="hpText">100/100</b></label>
+          <label>护甲 <meter id="armorMeter" max="20" value="0"></meter><b id="armorText">0</b></label>
+          <label>体力 <meter id="staminaMeter" max="100" value="100"></meter><b id="staminaText">100</b></label>
+        </div>
+        <div class="scoreline">
+          <span>阶段 <b id="dayText">白天 1</b></span>
+          <span>剩余 <b id="clockText">05:00</b></span>
+          <span>工具 <b id="toolText">徒手</b></span>
+          <span>远程 <b id="rangedText">无</b></span>
+          <span>联机 <b id="multiplayerText">离线</b></span>
+        </div>
+      </section>
+
+      <aside class="inventory" aria-label="物品栏和合成">
+        <div class="panel-title">
+          <h2>物品栏</h2>
+          <div class="panel-actions">
+            <button id="toggleInventoryBtn" type="button" title="隐藏 / 显示物品栏">隐藏</button>
+            <button id="pauseBtn" type="button" title="暂停 / 继续">暂停</button>
+            <button id="voiceBtn" type="button" title="开启 / 关闭麦克风">麦克风</button>
+          </div>
+        </div>
+
+        <div class="resource-grid">
+          <span>木头 <b id="woodText">0</b></span>
+          <span>木板 <b id="plankText">0</b></span>
+          <span>泥土 <b id="dirtText">0</b></span>
+          <span>树叶 <b id="leafText">0</b></span>
+          <span>石头 <b id="stoneText">0</b></span>
+          <span>煤炭 <b id="coalText">0</b></span>
+          <span>铁矿 <b id="ironOreText">0</b></span>
+          <span>铁锭 <b id="ironIngotText">0</b></span>
+          <span>钻石 <b id="diamondText">0</b></span>
+          <span>玻璃 <b id="glassText">0</b></span>
+          <span>石砖 <b id="brickText">0</b></span>
+          <span>花砖 <b id="flowerBrickText">0</b></span>
+          <span>灯笼 <b id="lanternText">0</b></span>
+          <span>蓝旗 <b id="bannerText">0</b></span>
+          <span>毛线 <b id="woolText">0</b></span>
+          <span>线 <b id="stringText">0</b></span>
+          <span>腐肉 <b id="rottenText">0</b></span>
+          <span>熔炉 <b id="furnaceText">0</b></span>
+          <span>木门 <b id="doorText">0</b></span>
+          <span>床 <b id="bedText">0</b></span>
+          <span>篝火 <b id="campfireText">0</b></span>
+          <span>铁桶 <b id="bucketText">0</b></span>
+          <span>水桶 <b id="waterBucketText">0</b></span>
+          <span>岩浆桶 <b id="lavaBucketText">0</b></span>
+          <span>火球 <b id="fireballText">0</b></span>
+          <span>传送门 <b id="portalText">0</b></span>
+        </div>
+
+        <div class="crafting">
+          <button id="craftTableBtn" type="button">合成台：4 木头</button>
+          <button id="placeTableBtn" type="button">放置合成台</button>
+          <button id="craftPlankBtn" type="button">分解木板：1 木 -> 4 木板</button>
+          <button id="placePlankBtn" type="button">放置木板</button>
+          <button id="placeDirtBtn" type="button">放置泥土</button>
+          <button id="placeLeafBtn" type="button">放置树叶</button>
+          <button id="placeWoodBtn" type="button">放置木头</button>
+          <button id="craftDoorBtn" type="button">木门：6 木板</button>
+          <button id="craftFurnaceBtn" type="button">熔炉：8 石头</button>
+          <button id="placeFurnaceBtn" type="button">放置熔炉</button>
+          <button id="placeDoorBtn" type="button">放置木门</button>
+          <button id="craftWoodPickBtn" type="button">木镐：5 木头</button>
+          <button id="craftStonePickBtn" type="button">石镐：3 石 2 木</button>
+          <button id="smeltIronBtn" type="button">烧铁：铁矿 + 煤</button>
+          <button id="craftIronPickBtn" type="button">铁镐：3 铁锭 2 木</button>
+          <button id="craftArmorBtn" type="button">铁甲：6 铁锭</button>
+          <button id="craftBowBtn" type="button">弩：4 木 2 铁 1 煤</button>
+          <button id="craftDiamondSwordBtn" type="button">钻石剑：2 钻石 1 木</button>
+          <button id="craftDiamondArmorBtn" type="button">钻石甲：6 钻石</button>
+          <button id="craftDiamondBowBtn" type="button">钻石弩：3 钻石 1 弩</button>
+          <button id="craftGlassBtn" type="button">玻璃：2 石头 1 煤</button>
+          <button id="placeGlassBtn" type="button">放置玻璃</button>
+          <button id="craftBrickBtn" type="button">石砖：4 石头</button>
+          <button id="placeBrickBtn" type="button">放置石砖</button>
+          <button id="craftFlowerBrickBtn" type="button">花砖：2 石砖 1 树叶</button>
+          <button id="placeFlowerBrickBtn" type="button">放置花砖</button>
+          <button id="craftLanternBtn" type="button">灯笼：1 煤 1 铁锭</button>
+          <button id="placeLanternBtn" type="button">放置灯笼</button>
+          <button id="craftBannerBtn" type="button">蓝旗：2 树叶 1 木头</button>
+          <button id="placeBannerBtn" type="button">放置蓝旗</button>
+          <button id="craftWoolBtn" type="button">毛线：4 根线</button>
+          <button id="craftBedBtn" type="button">床：3 毛线 3 木板</button>
+          <button id="placeBedBtn" type="button">放置床</button>
+          <button id="craftCampfireBtn" type="button">篝火：3 木头 1 煤</button>
+          <button id="placeCampfireBtn" type="button">放置篝火</button>
+          <button id="sleepBtn" type="button">睡觉：跳过当前昼夜</button>
+          <button id="craftBucketBtn" type="button">铁桶：3 铁锭</button>
+          <button id="collectWaterBtn" type="button">铁桶装水：3 格内</button>
+          <button id="collectLavaBtn" type="button">铁桶装岩浆：3 格内</button>
+          <button id="craftBossBtn" type="button">主世界 BOSS：8 腐肉 + 1 熔炉 + 3 钻石</button>
+          <button id="craftPortalBtn" type="button">传送门：水桶 + 岩浆桶 + 火球</button>
+          <button id="placePortalBtn" type="button">放置传送门</button>
+        </div>
+      </aside>
+
+      <section class="help" aria-label="操作提示">
+        <span>A/D 左右移动</span>
+        <span>空格 / W 跳跃</span>
+        <span>Shift 冲刺</span>
+        <span>鼠标左键挖矿 / 近战</span>
+        <span>E 开关木门</span>
+        <span>靠近床点击睡觉跳过白天或黑夜</span>
+        <span>左键挖取木门</span>
+        <span>右键液体用铁桶装取</span>
+        <span>右键放置当前设施</span>
+        <span>联机可同步方块和麦克风</span>
+        <span>F 或中键远程攻击</span>
+        <span>靠近合成台才能做工具；靠近熔炉才能烧铁</span>
+      </section>
+
+      <section class="mobile-controls" aria-label="手机操作">
+        <div class="mobile-move">
+          <button class="mobile-btn" data-key="a" type="button">左</button>
+          <button class="mobile-btn" data-key="d" type="button">右</button>
+        </div>
+        <div class="mobile-actions">
+          <button class="mobile-btn jump" data-key=" " type="button">跳</button>
+          <button class="mobile-btn" data-action="shoot" type="button">射</button>
+          <button class="mobile-btn" data-action="door" type="button">门</button>
+          <button class="mobile-btn" data-action="rescue" type="button">救</button>
+          <button class="mobile-btn wide" data-action="inventory" type="button">背包</button>
+          <button class="mobile-btn wide" data-action="quality" type="button">低画质</button>
+          <button class="mobile-btn wide edit-keys" data-action="editKeys" type="button">改键</button>
+        </div>
+      </section>
+
+      <section id="startOverlay" class="start-overlay">
+        <strong>开始挖矿生存</strong>
+        <span>做合成台，造木镐挖石头，石镐挖铁，烧铁做铁镐，铁镐挖钻石。夜晚僵尸来袭，收集腐肉召唤并击败最终 BOSS。</span>
+        <div class="mode-actions">
+          <button id="survivalBtn" type="button">生存模式</button>
+          <button id="creativeBtn" type="button">创造模式</button>
+          <button id="multiplayerBtn" type="button">联机模式</button>
+          <button id="newMultiplayerBtn" type="button">新的联机存档</button>
+        </div>
+      </section>
+
+      <div id="sharePanel" class="share-panel hidden" aria-label="联机分享">
+        <label>房间号 <input id="roomCodeInput" type="text" readonly value="zijia" /></label>
+        <button id="copyRoomBtn" type="button">复制房间号</button>
+        <button id="copyLinkBtn" type="button">复制联机地址</button>
+        <button id="hideShareBtn" type="button">隐藏</button>
+      </div>
+
+      <div id="message" class="message" role="status" aria-live="polite">横版侧视。地面在屏幕底部，先砍树做合成台和木镐。</div>
+
+      <div class="rotate-lock" aria-label="横屏提示">
+        <strong>请横屏游玩</strong>
+        <span>把手机横过来，手机版按钮会自动出现。</span>
+      </div>
+    </main>
+
+    <script src="./sideview.js?v=smooth-net-1"></script>
+  </body>
+</html>
