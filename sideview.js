@@ -212,7 +212,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "jitter-smooth-1");
+  url.searchParams.set("v", "inventory-restore-1");
   return url.toString();
 }
 
@@ -408,6 +408,7 @@ function saveGame() {
       placeMode: state.placeMode,
       mode: state.mode,
       dimension: state.dimension,
+      inventoryHidden: state.inventoryHidden,
       multiplayer: { enabled: multiplayer.enabled, room: multiplayer.room, role: multiplayer.role },
     },
     player: {
@@ -444,6 +445,11 @@ function clearAllGameSaves() {
     const key = localStorage.key(i);
     if (key && key.startsWith(SAVE_PREFIX)) localStorage.removeItem(key);
   }
+}
+
+function applyInventoryVisibility() {
+  document.querySelector(".inventory").classList.toggle("collapsed", state.inventoryHidden);
+  ui.toggleInventoryBtn.textContent = state.inventoryHidden ? "显示" : "隐藏";
 }
 
 function loadGame() {
@@ -485,6 +491,7 @@ function loadGame() {
       placeMode: save.state.placeMode || "table",
       mode: save.state.mode || "survival",
       dimension: save.state.dimension || "overworld",
+      inventoryHidden: !!save.state.inventoryHidden,
       inv: { ...freshInventory(), ...(save.state.inv || {}) },
     });
     Object.assign(player, {
@@ -504,6 +511,7 @@ function loadGame() {
       diamondBow: !!save.player.diamondBow,
     });
     ui.startOverlay.classList.add("hidden");
+    applyInventoryVisibility();
     if (save.state.multiplayer?.enabled) {
       multiplayer.room = save.state.multiplayer.room || multiplayer.room;
       multiplayer.role = save.state.multiplayer.role === "admin" ? "admin" : "guest";
@@ -712,12 +720,14 @@ function resetGame(mode = "survival") {
     placeMode: "table",
     mode,
     dimension: "overworld",
+    inventoryHidden: false,
     inv: mode === "creative" ? creativeInventory() : freshInventory(),
   });
   Object.assign(player, { x: 12 * TILE, y: (SURFACE - 3) * TILE, vx: 0, vy: 0, hp: 100, armor: 0, stamina: 100, facing: 1, onGround: false, pick: "none", ranged: false, sword: "none", diamondArmor: false, diamondBow: false });
   seedWorld();
   saveGame();
   ui.startOverlay.classList.add("hidden");
+  applyInventoryVisibility();
   ui.pauseBtn.textContent = "暂停";
   say(mode === "creative" ? "创造模式：资源充足，可以自由搭建。" : "地面在屏幕底部。A/D 移动，空格跳跃，左键砍树。");
 }
@@ -739,7 +749,7 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "jitter-smooth-1");
+  url.searchParams.set("v", "inventory-restore-1");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
@@ -2864,6 +2874,7 @@ ui.startOverlay.addEventListener("click", (event) => {
 });
 ui.toggleInventoryBtn.addEventListener("click", () => {
   state.inventoryHidden = !state.inventoryHidden;
+  saveGame();
   document.querySelector(".inventory").classList.toggle("collapsed", state.inventoryHidden);
   ui.toggleInventoryBtn.textContent = state.inventoryHidden ? "显示" : "隐藏";
 });
