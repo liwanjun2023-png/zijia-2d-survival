@@ -212,7 +212,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function multiplayerShareUrl() {
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "inventory-restore-1");
+  url.searchParams.set("v", "mobile-controls-fix-1");
   return url.toString();
 }
 
@@ -749,7 +749,7 @@ function startNewMultiplayerSave() {
   multiplayer.room = `zijia-${Date.now().toString(36).slice(-6)}`;
   const url = new URL(location.href);
   url.searchParams.set("room", multiplayer.room);
-  url.searchParams.set("v", "inventory-restore-1");
+  url.searchParams.set("v", "mobile-controls-fix-1");
   history.replaceState(null, "", url);
   clearAllGameSaves();
   resetGame("survival");
@@ -2577,7 +2577,11 @@ function maybeAutosave(now) {
   saveGame();
 }
 
-window.addEventListener("resize", resize);
+window.addEventListener("resize", () => {
+  resize();
+  applyMobileKeyLayout();
+});
+window.addEventListener("orientationchange", () => setTimeout(applyMobileKeyLayout, 250));
 window.addEventListener("keydown", (event) => {
   keys.add(event.key.toLowerCase());
   if (event.key.toLowerCase() === "f") shootBolt();
@@ -2688,6 +2692,30 @@ function mobileButtonId(button) {
   return button.dataset.action || `key-${button.dataset.key || "blank"}`;
 }
 
+function clampMobileButtonOffset(button, x, y) {
+  const currentX = Number(button.dataset.moveX) || 0;
+  const currentY = Number(button.dataset.moveY) || 0;
+  const rect = button.getBoundingClientRect();
+  if (!rect.width || !rect.height) return { x, y };
+  const baseLeft = rect.left - currentX;
+  const baseRight = rect.right - currentX;
+  const baseTop = rect.top - currentY;
+  const baseBottom = rect.bottom - currentY;
+  const pad = 6;
+  return {
+    x: clamp(x, pad - baseLeft, window.innerWidth - pad - baseRight),
+    y: clamp(y, pad - baseTop, window.innerHeight - pad - baseBottom),
+  };
+}
+
+function setMobileButtonOffset(button, x, y) {
+  const pos = clampMobileButtonOffset(button, Number(x) || 0, Number(y) || 0);
+  button.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+  button.dataset.moveX = pos.x;
+  button.dataset.moveY = pos.y;
+  return pos;
+}
+
 function applyMobileKeyLayout() {
   let layout = {};
   try {
@@ -2698,10 +2726,9 @@ function applyMobileKeyLayout() {
   document.querySelectorAll(".mobile-btn").forEach((button) => {
     const pos = layout[mobileButtonId(button)];
     if (!pos) return;
-    button.style.transform = `translate(${Number(pos.x) || 0}px, ${Number(pos.y) || 0}px)`;
-    button.dataset.moveX = Number(pos.x) || 0;
-    button.dataset.moveY = Number(pos.y) || 0;
+    setMobileButtonOffset(button, Number(pos.x) || 0, Number(pos.y) || 0);
   });
+  saveMobileKeyLayout();
 }
 
 function saveMobileKeyLayout() {
@@ -2733,9 +2760,7 @@ function moveMobileButton(event) {
   if (!drag) return;
   const x = drag.x + event.clientX - drag.startX;
   const y = drag.y + event.clientY - drag.startY;
-  drag.button.dataset.moveX = x;
-  drag.button.dataset.moveY = y;
-  drag.button.style.transform = `translate(${x}px, ${y}px)`;
+  setMobileButtonOffset(drag.button, x, y);
 }
 
 function stopMobileButtonDrag() {
